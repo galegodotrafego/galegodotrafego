@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const getUser = vi.fn();
+const { getUser } = vi.hoisted(() => ({ getUser: vi.fn() }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { getUser } }),
@@ -8,7 +8,6 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const {
   isPlatformOperator,
-  PlatformAccessError,
   requirePlatformAdmin,
 } = await import("./admin");
 
@@ -38,7 +37,7 @@ describe("platform administrator guard", () => {
     delete process.env.PLATFORM_ADMIN_EMAILS;
     await expect(requirePlatformAdmin()).rejects.toMatchObject({
       status: 503,
-    } satisfies Partial<PlatformAccessError>);
+    });
     expect(getUser).not.toHaveBeenCalled();
   });
 
