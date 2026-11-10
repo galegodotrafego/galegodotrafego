@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
@@ -10,6 +10,7 @@ import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
   Bell,
   Bot,
+  Building2,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -119,6 +120,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+
+  useEffect(() => {
+    if (profileLoading || !profile?.email) return;
+    let cancelled = false;
+    fetch("/api/platform/me", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => { if (!cancelled) setIsPlatformAdmin(data.isPlatformAdmin === true); })
+      .catch(() => { if (!cancelled) setIsPlatformAdmin(false); });
+    return () => { cancelled = true; };
+  }, [profile?.email, profileLoading]);
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
   // (the 017 signup trigger seeds it from `full_name`), so showing it
@@ -291,6 +303,20 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               );
             })}
           </ul>
+          {isPlatformAdmin && (
+            <Link
+              href="/platform/companies"
+              className={cn(
+                "mt-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium lg:py-2",
+                pathname.startsWith("/platform/")
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Building2 className="h-4 w-4" />
+              Empresas clientes
+            </Link>
+          )}
         </nav>
 
         {/* User section */}
