@@ -49,5 +49,14 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Database security smoke tests
+        run: npm run test:db-security
+
       - name: Build
         run: npm run build
+
+      - name: MCP dependencies
+        run: npm ci --prefix mcp-server
+
+      - name: MCP typecheck and schema tests
+        run: npm run typecheck --prefix mcp-server && npm test --prefix mcp-server

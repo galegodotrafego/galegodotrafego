@@ -7,7 +7,7 @@ Supabase Auth + registro em `accounts` com sua própria `account_id`,
 usando as políticas RLS já existentes.
 
 ## Configuração
-1. Aplicar as migrações Supabase existentes (até 039) antes de usar o painel.
+1. Aplicar as migrações Supabase existentes (até 041 (validar primeiro em homologação)) antes de usar o painel.
 2. Criar sua própria conta confirmada no Supabase Auth.
 3. Definir `PLATFORM_ADMIN_EMAILS=seu-email@dominio.com` **somente no servidor**.
 4. Configurar `SUPABASE_SERVICE_ROLE_KEY` somente no servidor; HTTPS obrigatório.
@@ -37,7 +37,8 @@ usando as políticas RLS já existentes.
   renovação ou acesso por plano. Não considerar como SaaS pago pronto
   para produção até implementar cobrança e bloqueio de acesso,
   inclusive nos caminhos que usam service role.
-- O código cria usuários com `email_confirm: true` para permitir entrega
+- E-mails da allow-list de operadores são recusados no cadastro de clientes.
+  O código cria usuários com `email_confirm: true` para permitir entrega
   presencial dos dados. A empresa deve validar o e-mail antes de
   habilitar recursos sensíveis; se o cadastro online for automatizado,
   substituir por convite de ativação verificado.

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/ai/admin-client";
-import { PlatformAccessError, requirePlatformAdmin } from "@/lib/platform/admin";
+import { isPlatformOperator, PlatformAccessError, requirePlatformAdmin } from "@/lib/platform/admin";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ function platformError(error: unknown): NextResponse {
   if (error instanceof PlatformAccessError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
-  console.error("[platform/companies] unexpected error", error);
+  console.error("[platform/companies] unexpected error");
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }
 
@@ -66,6 +66,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const operator = await requirePlatformAdmin();
+    // JSON-only requests cannot be sent by a cross-site HTML form.
+    if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json" ||
+        request.headers.get("sec-fetch-site") === "cross-site") {
+      return NextResponse.json({ error: "Invalid request origin or content type" }, { status: 403 });
+    }
     const limit = checkRateLimit(
       `platform:provision:${operator.id}`,
       RATE_LIMITS.adminAction,
@@ -92,7 +97,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const temporaryPassword = randomBytes(24).toString("base64url");
+    // Never auto-confirm an address that grants platform-wide privileges.
+    if (isPlatformOperator(ownerEmail)) {
+      return NextResponse.json({ error: "Este e-mail é reservado à administração da plataforma." }, { status: 400 });
+    }
+
+    // Fixed classes satisfy common Supabase password-complexity settings;
+    // the random portion still provides 192 bits of entropy.
+    const temporaryPassword = `Aa1!${randomBytes(24).toString("base64url")}`;
     const admin = supabaseAdmin();
     const { data, error: createError } = await admin.auth.admin.createUser({
       email: ownerEmail,
@@ -104,7 +116,7 @@ export async function POST(request: Request) {
     if (createError || !data.user) {
       // Supabase commonly returns 422 for an existing email. Do not reveal
       // internal provider details or echo credentials in the error.
-      const duplicate = createError?.status === 422 || createError?.status === 409;
+      const duplicate = createError?.code === "email_exists" || createError?.code === "user_already_exists";
       return NextResponse.json(
         { error: duplicate ? "Este e-mail já possui uma conta." : "Não foi possível criar o acesso." },
         { status: duplicate ? 409 : 502 },
@@ -112,44 +124,47 @@ export async function POST(request: Request) {
     }
 
     const newUserId = data.user.id;
-    // The existing auth trigger should have inserted the personal account.
-    const { data: account, error: accountError } = await admin
-      .from("accounts")
-      .select("id")
-      .eq("owner_user_id", newUserId)
-      .maybeSingle();
+    let accountId: string | null = null;
+    try {
+      const { data: account, error: accountError } = await admin
+        .from("accounts").select("id").eq("owner_user_id", newUserId).single();
+      if (accountError || !account) throw new Error("Account bootstrap failed");
+      accountId = account.id;
 
-    let updated = false;
-    if (!accountError && account) {
-      const { error: renameError } = await admin
-        .from("accounts")
-        .update({ name: companyName })
-        .eq("id", account.id);
-      updated = !renameError;
-      if (renameError) console.error("[platform/companies] rename failed", renameError);
-    }
-
-    if (!updated) {
-      // Auth and database writes cannot be made in one transaction here.
-      // Compensate so the operator can retry without a stranded login.
-      if (account) {
-        const { error: cleanupError } = await admin
-          .from("accounts")
-          .delete()
-          .eq("id", account.id);
-        if (cleanupError) console.error("[platform/companies] cleanup failed", cleanupError);
+      const { data: profile, error: profileError } = await admin
+        .from("profiles").select("account_id, account_role")
+        .eq("user_id", newUserId).single();
+      if (profileError || profile?.account_id !== accountId || profile?.account_role !== "owner") {
+        throw new Error("Owner profile bootstrap failed");
       }
-      const { error: deleteUserError } = await admin.auth.admin.deleteUser(newUserId);
-      if (deleteUserError) console.error("[platform/companies] auth rollback failed", deleteUserError);
+
+      const { data: renamed, error: renameError } = await admin
+        .from("accounts").update({ name: companyName })
+        .eq("id", accountId).eq("owner_user_id", newUserId).select("id").single();
+      if (renameError || !renamed) throw new Error("Account rename failed");
+    } catch {
+      // Restrict compensation to this newly-created owner's accounts, even
+      // when the first read failed. Never delete an existing customer's user.
+      // Account deletion must precede Auth deletion (owner FK is RESTRICT).
+      try {
+        const { error: cleanupError } = await admin.from("accounts")
+          .delete().eq("owner_user_id", newUserId);
+        if (cleanupError) throw new Error("Account cleanup failed");
+        const { error: deleteUserError } = await admin.auth.admin.deleteUser(newUserId);
+        if (deleteUserError) throw new Error("Auth cleanup failed");
+      } catch {
+        // Log only a correlation ID, never provider objects/credentials.
+        console.error("[platform/companies] rollback requires manual review", { userId: newUserId });
+      }
       return NextResponse.json(
         { error: "Falha ao configurar a empresa. Verifique o cadastro antes de tentar novamente." },
-        { status: 500 },
+        { status: 500, headers: { "Cache-Control": "no-store" } },
       );
     }
 
     return NextResponse.json({
       company: {
-        id: account!.id,
+        id: accountId,
         name: companyName,
         owner_name: ownerName,
         owner_email: ownerEmail,
