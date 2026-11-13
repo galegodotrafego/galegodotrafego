@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/ai/admin-client";
@@ -6,6 +6,7 @@ import { isPlatformOperator, PlatformAccessError, requirePlatformAdmin } from "@
 import { rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 
 import { checkDistributedRateLimit } from "@/lib/distributed-rate-limit";
+import { activationBaseUrl } from "@/lib/platform/activation";
 
 export const runtime = "nodejs";
 
@@ -58,7 +59,8 @@ export async function GET() {
 
 /**
  * Provision one company after a sale:
- * 1. Supabase Auth creates the owner (random initial password).
+ * A service-only reservation makes Auth + account bootstrap retry-safe.
+ * No initial password is disclosed; the operator delivers a recovery link.
  * 2. Existing handle_new_user trigger creates the owner profile + isolated account.
  * 3. We name that account after the contracted company.
  *
@@ -104,75 +106,65 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Este e-mail é reservado à administração da plataforma." }, { status: 400 });
     }
 
-    // Fixed classes satisfy common Supabase password-complexity settings;
-    // the random portion still provides 192 bits of entropy.
-    const temporaryPassword = `Aa1!${randomBytes(24).toString("base64url")}`;
+    const requestId = request.headers.get("idempotency-key") ?? "";
+    const planId = typeof payload?.plan_id === "string" ? payload.plan_id : "";
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuid.test(requestId) || !uuid.test(planId)) {
+      return NextResponse.json({ error: "Informe um plano válido e Idempotency-Key UUID." }, { status: 400 });
+    }
+    const baseUrl = activationBaseUrl(); // Fail before mutations if redirect config is unsafe.
     const admin = supabaseAdmin();
-    const { data, error: createError } = await admin.auth.admin.createUser({
-      email: ownerEmail,
-      password: temporaryPassword,
-      email_confirm: true,
-      user_metadata: { full_name: ownerName },
+    const hash = createHash("sha256").update(JSON.stringify([companyName, ownerName, ownerEmail, planId])).digest("hex");
+    const { data: reserved, error: reserveError } = await admin.rpc("reserve_company_provisioning", {
+      p_id: requestId, p_hash: hash, p_company: companyName, p_name: ownerName,
+      p_email: ownerEmail, p_plan: planId, p_actor: operator.id,
     });
-
-    if (createError || !data.user) {
-      // Supabase commonly returns 422 for an existing email. Do not reveal
-      // internal provider details or echo credentials in the error.
-      const duplicate = createError?.code === "email_exists" || createError?.code === "user_already_exists";
-      return NextResponse.json(
-        { error: duplicate ? "Este e-mail já possui uma conta." : "Não foi possível criar o acesso." },
-        { status: duplicate ? 409 : 502 },
-      );
+    if (reserveError || !reserved) {
+      return NextResponse.json({ error: "Não foi possível reservar o cadastro. Confira o e-mail e a chave da tentativa." }, { status: reserveError?.code === "23505" ? 409 : 502 });
     }
-
-    const newUserId = data.user.id;
-    let accountId: string | null = null;
-    try {
-      const { data: account, error: accountError } = await admin
-        .from("accounts").select("id").eq("owner_user_id", newUserId).single();
-      if (accountError || !account) throw new Error("Account bootstrap failed");
-      accountId = account.id;
-
-      const { data: profile, error: profileError } = await admin
-        .from("profiles").select("account_id, account_role")
-        .eq("user_id", newUserId).single();
-      if (profileError || profile?.account_id !== accountId || profile?.account_role !== "owner") {
-        throw new Error("Owner profile bootstrap failed");
+    let entry = reserved;
+    const replayed = Boolean(entry.user_id);
+    if (!entry.user_id) {
+      const { error: createError } = await admin.auth.admin.createUser({
+        email: ownerEmail,
+        password: `Aa1!${randomBytes(24).toString("base64url")}`,
+        email_confirm: true,
+        app_metadata: { provisioning_request_id: requestId },
+        user_metadata: { full_name: ownerName },
+      });
+      // Read the ledger even on a transport/duplicate error: Auth may have
+      // committed before its response was lost. Never delete a resumed user.
+      const { data: persisted, error: readError } = await admin.from("company_provisioning_requests")
+        .select("user_id,account_id,completed_at").eq("id", requestId).single();
+      if (readError || !persisted?.user_id || !persisted.account_id) {
+        const duplicate = createError?.code === "email_exists" || createError?.code === "user_already_exists";
+        return NextResponse.json({ error: "Cadastro não concluído. Repita com a mesma chave da tentativa." }, { status: duplicate ? 409 : 502 });
       }
-
-      const { data: renamed, error: renameError } = await admin
-        .from("accounts").update({ name: companyName })
-        .eq("id", accountId).eq("owner_user_id", newUserId).select("id").single();
-      if (renameError || !renamed) throw new Error("Account rename failed");
-    } catch {
-      // Restrict compensation to this newly-created owner's accounts, even
-      // when the first read failed. Never delete an existing customer's user.
-      // Account deletion must precede Auth deletion (owner FK is RESTRICT).
-      try {
-        const { error: cleanupError } = await admin.from("accounts")
-          .delete().eq("owner_user_id", newUserId);
-        if (cleanupError) throw new Error("Account cleanup failed");
-        const { error: deleteUserError } = await admin.auth.admin.deleteUser(newUserId);
-        if (deleteUserError) throw new Error("Auth cleanup failed");
-      } catch {
-        // Log only a correlation ID, never provider objects/credentials.
-        console.error("[platform/companies] rollback requires manual review", { userId: newUserId });
-      }
-      return NextResponse.json(
-        { error: "Falha ao configurar a empresa. Verifique o cadastro antes de tentar novamente." },
-        { status: 500, headers: { "Cache-Control": "no-store" } },
-      );
+      entry = persisted;
     }
-
+    // Service-only billing RPC is independently idempotent. A failure leaves
+    // the account unentitled and the reservation resumable; never a second tenant.
+    const { error: billingError } = await admin.rpc("billing_start_subscription", {
+      p_account: entry.account_id, p_plan: planId, p_key: `provision:${requestId}`, p_actor: operator.id,
+    });
+    if (billingError) {
+      return NextResponse.json({ error: "Empresa reservada; assinatura pendente. Repita com a mesma chave." }, { status: 502 });
+    }
+    const { data: profile, error: profileError } = await admin.from("profiles")
+      .select("account_id,account_role").eq("user_id",entry.user_id).single();
+    if (profileError || profile?.account_id !== entry.account_id || profile.account_role !== "owner") throw new Error("Invalid owner bootstrap");
+    const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: "recovery", email: ownerEmail });
+    if (linkError || !link.properties?.hashed_token) {
+      return NextResponse.json({ error: "Empresa criada; não foi possível emitir a ativação. Repita com a mesma chave." }, { status: 502 });
+    }
+    const { error: completeError } = await admin.from("company_provisioning_requests")
+      .update({ completed_at: new Date().toISOString() }).eq("id",requestId);
+    if (completeError) throw new Error("Provisioning completion failed");
     return NextResponse.json({
-      company: {
-        id: accountId,
-        name: companyName,
-        owner_name: ownerName,
-        owner_email: ownerEmail,
-      },
-      credentials: { email: ownerEmail, temporary_password: temporaryPassword },
-    }, { status: 201, headers: { "Cache-Control": "no-store" } });
+      company: { id: entry.account_id, name: companyName, owner_name: ownerName, owner_email: ownerEmail },
+      activation_url: `${baseUrl}/activate#token_hash=${encodeURIComponent(link.properties.hashed_token)}`,
+      replayed,
+    }, { status: replayed ? 200 : 201, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
   } catch (error) {
     return platformError(error);
   }

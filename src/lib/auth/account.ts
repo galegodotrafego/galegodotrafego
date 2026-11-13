@@ -25,6 +25,7 @@
 //   }
 // ============================================================
 
+import { accountHasAccess } from "@/lib/entitlements/access";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -161,6 +162,10 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     // account_id points at no readable account row — orphaned profile
     // or an RLS gap. Same "can't scope this user" outcome as above.
     throw new ForbiddenError("Profile is not linked to an account");
+  }
+
+  if (!(await accountHasAccess(supabase, data.account_id))) {
+    throw new ForbiddenError("Assinatura indisponível. Contate o administrador da plataforma.");
   }
 
   return {

@@ -27,6 +27,7 @@
 // past its own account because the account is fixed at lookup time.
 // ============================================================
 
+import { accountHasAccess } from '@/lib/entitlements/access';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { supabaseAdmin } from '@/lib/flows/admin-client';
@@ -103,6 +104,10 @@ export async function requireApiKey(
 
   if (scope && !hasScope(row.scopes, scope)) {
     throw forbidden(`This API key is missing the '${scope}' scope`);
+  }
+
+  if (!(await accountHasAccess(supabaseAdmin(), row.account_id, 'api'))) {
+    throw forbidden('Assinatura indisponível ou API não incluída no plano');
   }
 
   touchLastUsed(row.id);

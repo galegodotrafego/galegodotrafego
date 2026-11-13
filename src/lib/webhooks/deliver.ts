@@ -1,3 +1,4 @@
+import { accountHasAccess } from '@/lib/entitlements/access';
 // ============================================================
 // Outbound webhook delivery.
 //
@@ -50,6 +51,7 @@ export async function dispatchWebhookEvent(
   data: unknown
 ): Promise<void> {
   try {
+    if (!(await accountHasAccess(db, accountId, 'api'))) return;
     const { data: rows, error } = await db
       .from('webhook_endpoints')
       .select('id, url, secret')

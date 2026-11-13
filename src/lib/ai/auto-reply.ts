@@ -1,3 +1,4 @@
+import { accountHasAccess } from '@/lib/entitlements/access';
 import { supabaseAdmin } from './admin-client'
 import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
@@ -46,6 +47,7 @@ export async function dispatchInboundToAiReply(
 
   try {
     const db = supabaseAdmin()
+    if (!(await accountHasAccess(db, accountId, 'ai'))) return
 
     const config = await loadAiConfig(db, accountId)
     if (!config || !config.autoReplyEnabled) return

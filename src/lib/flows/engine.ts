@@ -1,3 +1,4 @@
+import { accountHasAccess } from '@/lib/entitlements/access';
 /**
  * Flow runner.
  *
@@ -869,6 +870,7 @@ export async function dispatchInboundToFlows(
 ): Promise<DispatchInboundResult> {
   const db = supabaseAdmin();
   try {
+    if (!(await accountHasAccess(db, input.accountId, 'flows'))) return { consumed: false, outcome: 'no_match' };
     const activeRun = await loadActiveRunForContact(
       db,
       input.accountId,

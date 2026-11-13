@@ -1,3 +1,4 @@
+import { accountHasAccess } from '@/lib/entitlements/access';
 import type {
   Automation,
   AutomationLogStepResult,
@@ -67,6 +68,7 @@ export interface DispatchInput {
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()
+    if (!(await accountHasAccess(db, input.accountId, 'automations'))) return
 
     // Tenant isolation. `contactId` can be caller-supplied (the manual
     // POST /api/automations/engine entrypoint reads it straight from the
@@ -139,6 +141,7 @@ export async function resumePendingExecution(pending: {
   context: AutomationContext
 }): Promise<void> {
   const db = supabaseAdmin()
+  if (!(await accountHasAccess(db, pending.account_id, 'automations'))) return
   const { data: automation, error } = await db
     .from('automations')
     .select('*')
