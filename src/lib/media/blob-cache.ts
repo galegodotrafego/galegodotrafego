@@ -1,3 +1,4 @@
+import { privateMediaViewUrl } from "@/lib/storage/media-reference";
 /**
  * Shared loader for chat-media bytes.
  *
@@ -90,6 +91,7 @@ export async function loadMediaBlob(
   url: string,
   fetchImpl: MediaFetch = defaultFetch,
 ): Promise<Blob> {
+  url = privateMediaViewUrl(url);
   if (!isProxiedMediaUrl(url)) {
     const res = await fetchImpl(url);
     if (!res.ok) throw new MediaResponseError(res.status);

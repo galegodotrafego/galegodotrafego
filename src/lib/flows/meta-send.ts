@@ -205,6 +205,7 @@ export async function engineSendMedia(
 
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendMediaMessage({
+        accountId: args.accountId,
       phoneNumberId: config.phone_number_id,
       accessToken,
       to: phone,

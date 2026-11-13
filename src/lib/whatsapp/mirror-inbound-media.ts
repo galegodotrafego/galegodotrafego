@@ -1,3 +1,4 @@
+import { mediaReferenceUrl } from "@/lib/storage/media-reference";
 import { downloadMedia } from "./meta-api";
 import { extensionForMime } from "@/lib/media/filename";
 import { buildMediaPath, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media";
@@ -31,7 +32,7 @@ export interface MirrorStorage {
       body: Uint8Array | Buffer,
       options: { contentType: string; cacheControl: string; upsert: boolean },
     ): Promise<{ error: { message: string } | null }>;
-    getPublicUrl(path: string): { data: { publicUrl: string } };
+
   };
 }
 
@@ -226,10 +227,7 @@ export async function mirrorInboundMedia(
       return null;
     }
 
-    const {
-      data: { publicUrl },
-    } = storage.from(MIRROR_BUCKET).getPublicUrl(path);
-    return publicUrl || null;
+    return mediaReferenceUrl(MIRROR_BUCKET, path);
   } catch (error) {
     console.warn(
       `[mirror-media] could not mirror ${mediaId}:`,

@@ -1,5 +1,6 @@
 'use client';
 
+import { mediaReferenceUrl } from "@/lib/storage/media-reference";
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Upload, Trash2, Mail, CircleAlert } from 'lucide-react';
@@ -131,9 +132,7 @@ export function ProfileForm() {
         if (uploadError) {
           throw new Error(t('uploadFailed', { message: uploadError.message }));
         }
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('avatars').getPublicUrl(path);
+        const publicUrl = mediaReferenceUrl('avatars', path);
         nextAvatarUrl = publicUrl;
       } else if (removeAvatar) {
         nextAvatarUrl = null;

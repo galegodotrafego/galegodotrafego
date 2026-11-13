@@ -1,5 +1,6 @@
 "use client";
 
+import { privateMediaViewUrl } from "@/lib/storage/media-reference";
 import { useEffect, useState } from "react";
 import { isProxiedMediaUrl, loadMediaBlob } from "@/lib/media/blob-cache";
 
@@ -30,7 +31,8 @@ interface ResolvedMedia {
  * Only use this for images. Video and audio must keep their plain URL so
  * the element streams instead of buffering up to 16 MB before it plays.
  */
-export function useMediaBlobUrl(url: string | undefined): MediaBlobUrlState {
+export function useMediaBlobUrl(sourceUrl: string | undefined): MediaBlobUrlState {
+  const url = sourceUrl ? privateMediaViewUrl(sourceUrl) : undefined;
   const [resolved, setResolved] = useState<ResolvedMedia | null>(null);
 
   useEffect(() => {

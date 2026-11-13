@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { brand } from "@/lib/branding";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { Inter } from "next/font/google";
@@ -22,16 +23,16 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: brand.name,
+    template: `%s — ${brand.name}`,
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: brand.description,
   robots: {
     index: false,
     follow: false,
   },
   icons: {
-    icon: [{ url: "/icon" }],
+    icon: [{ url: brand.favicon || "/icon" }],
   },
   formatDetection: {
     email: false,

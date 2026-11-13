@@ -14,6 +14,7 @@ name: Migrations
 # container on the runner.
 
 on:
+  workflow_dispatch:
   pull_request:
     # `supabase/**` rather than `supabase/migrations/**` so a change to
     # config.toml re-runs the check too, and this workflow is listed so
@@ -26,10 +27,13 @@ on:
       - 'supabase/**'
       - '.github/workflows/migrations.yml'
   push:
-    branches: [main]
+    branches: [main, feat/saas-customer-provisioning]
     paths:
       - 'supabase/**'
       - '.github/workflows/migrations.yml'
+
+permissions:
+  contents: read
 
 concurrency:
   group: migrations-${{ github.ref }}
@@ -39,6 +43,7 @@ jobs:
   apply:
     name: Apply to a clean database
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -69,3 +74,6 @@ jobs:
       # just the absence of an error.
       - name: Verify the resulting schema
         run: supabase db query --local --file supabase/ci/verify-schema.sql
+
+      - name: Reject public access to internal RPCs
+        run: supabase db query --local --file supabase/ci/verify-internal-rpcs.sql

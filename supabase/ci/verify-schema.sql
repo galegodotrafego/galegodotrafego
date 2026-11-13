@@ -42,6 +42,18 @@ BEGIN
     RAISE EXCEPTION 'public.accounts is missing — migration 017 did not apply';
   END IF;
 
+  -- Explicit Supabase grants must not reopen internal SECURITY DEFINER RPCs.
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname IN (
+      '_bcast_bump', 'recompute_broadcast_counts', 'claim_ai_reply_slot',
+      'record_webhook_failure', 'merge_duplicate_contacts', 'merge_duplicate_conversations'
+    ) AND (has_function_privilege('anon', p.oid, 'EXECUTE')
+      OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      OR NOT has_function_privilege('service_role', p.oid, 'EXECUTE'))
+  ) THEN
+    RAISE EXCEPTION 'Internal RPC permissions are unsafe or service access is missing';
+  END IF;
   RAISE NOTICE 'schema verification passed';
 END
 $$;

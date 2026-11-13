@@ -339,6 +339,7 @@ export async function sendMessageToConversation(
   const attempt = async (phone: string): Promise<string> => {
     if (messageType === 'template') {
       const result = await sendTemplateMessage({
+        accountId: accountId,
         phoneNumberId: config.phone_number_id,
         accessToken,
         to: phone,
@@ -353,6 +354,7 @@ export async function sendMessageToConversation(
     }
     if (isMediaKind) {
       const result = await sendMediaMessage({
+        accountId: accountId,
         phoneNumberId: config.phone_number_id,
         accessToken,
         to: phone,

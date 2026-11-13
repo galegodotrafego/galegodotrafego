@@ -1,3 +1,4 @@
+import { parseMediaReference } from "@/lib/storage/media-reference";
 /**
  * Pure validators for message templates, run BEFORE the Meta submit
  * call so a misconfigured template fails at save time (with a specific
@@ -153,7 +154,7 @@ export function validateHeader(
       `${header_type} header requires either a public sample URL (header_media_url) or a Resumable Upload handle (header_handle).`,
     );
   }
-  if (header_media_url) {
+  if (header_media_url && !parseMediaReference(header_media_url)) {
     try {
       const u = new URL(header_media_url);
       if (u.protocol !== 'https:' && u.protocol !== 'http:') {

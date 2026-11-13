@@ -138,7 +138,7 @@ describe("mirrorInboundMedia", () => {
     vi.restoreAllMocks();
   });
 
-  it("uploads to chat-media and returns the durable public URL", async () => {
+  it("uploads to chat-media and returns a private durable reference", async () => {
     const { storage, uploads } = fakeStorage();
     const download = fakeDownload(1024);
 
@@ -158,7 +158,7 @@ describe("mirrorInboundMedia", () => {
     );
     expect(uploads[0].options.contentType).toBe("image/jpeg");
     expect(url).toBe(
-      `https://cdn.test/storage/chat-media/account-${ACCOUNT}/inbound/${MEDIA_ID}-image-1754899200.jpg`,
+      `/api/storage/media?bucket=chat-media&path=account-${ACCOUNT}%2Finbound%2F${MEDIA_ID}-image-1754899200.jpg`,
     );
   });
 

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { brand } from "@/lib/branding";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
@@ -10,6 +12,7 @@ import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
   Bell,
   Bot,
+  Building2,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -119,6 +122,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+
+  useEffect(() => {
+    if (profileLoading || !profile?.email) return;
+    let cancelled = false;
+    fetch("/api/platform/me", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => { if (!cancelled) setIsPlatformAdmin(data.isPlatformAdmin === true); })
+      .catch(() => { if (!cancelled) setIsPlatformAdmin(false); });
+    return () => { cancelled = true; };
+  }, [profile?.email, profileLoading]);
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
   // (the 017 signup trigger seeds it from `full_name`), so showing it
@@ -182,17 +196,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           // Desktop: static, always visible — reset all the mobile framing.
           "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
         )}
-        aria-label="Primary"
+        aria-label="Navegação principal"
       >
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
+              {brand.logo ? <Image src={brand.logo} alt="" width={24} height={24} unoptimized /> : <MessageSquare className="h-4 w-4" />}
             </div>
             <span className="text-sm font-semibold text-foreground">
-              {t("title")}
+              {brand.name}
             </span>
           </Link>
           <button
@@ -291,6 +305,20 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               );
             })}
           </ul>
+          {isPlatformAdmin && (
+            <Link
+              href="/platform/companies"
+              className={cn(
+                "mt-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium lg:py-2",
+                pathname.startsWith("/platform/")
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Building2 className="h-4 w-4" />
+              Administração global
+            </Link>
+          )}
         </nav>
 
         {/* User section */}

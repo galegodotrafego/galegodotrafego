@@ -1,13 +1,17 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, feat/saas-customer-provisioning]
 
 # Cancel older CI runs for the same branch when a new commit arrives —
 # saves minutes when someone pushes a stack of fixes to one PR.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -16,6 +20,7 @@ jobs:
   check:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Dummy env vars so `next build` doesn't fail when it reads the
     # public Supabase config at build time. These never leave CI and
     # never hit a real service — they just satisfy the `!` non-null
@@ -49,5 +54,17 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Database security smoke tests
+        run: npm run test:db-security
+
+      - name: Storage and distributed limiter security
+        run: npm run test:storage-security
+
       - name: Build
         run: npm run build
+
+      - name: MCP dependencies
+        run: npm ci --prefix mcp-server
+
+      - name: MCP typecheck and schema tests
+        run: npm run typecheck --prefix mcp-server && npm test --prefix mcp-server
