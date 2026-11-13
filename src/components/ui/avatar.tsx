@@ -1,5 +1,6 @@
 "use client"
 
+import { privateMediaViewUrl } from "@/lib/storage/media-reference";
 import * as React from "react"
 import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar"
 
@@ -25,10 +26,11 @@ function Avatar({
   )
 }
 
-function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
+function AvatarImage({ className, src, ...props }: AvatarPrimitive.Image.Props) {
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
+      src={typeof src === "string" ? privateMediaViewUrl(src) : src}
       className={cn(
         "aspect-square size-full rounded-full object-cover",
         className

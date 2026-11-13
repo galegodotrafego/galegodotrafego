@@ -1,5 +1,6 @@
 "use client";
 
+import { privateMediaViewUrl } from "@/lib/storage/media-reference";
 import { useCallback, useState } from "react";
 import {
   Download,
@@ -196,7 +197,7 @@ export function MediaVideoBubble({
       {/* Plain URL, not a blob: the element should stream rather than wait
           for up to 16 MB to land. */}
       <video
-        src={message.media_url}
+        src={message.media_url ? privateMediaViewUrl(message.media_url) : undefined}
         controls
         preload="metadata"
         className={cn(MEDIA_BOX, "rounded-lg")}
@@ -234,7 +235,7 @@ export function MediaAudioBubble({
 
   return (
     <div className="flex items-center gap-2">
-      <audio src={message.media_url} controls className="max-w-60" />
+      <audio src={message.media_url ? privateMediaViewUrl(message.media_url) : undefined} controls className="max-w-60" />
       <MediaActionButton
         icon={Download}
         label={t("download")}
@@ -257,7 +258,7 @@ export function MediaDocumentBubble({
   return (
     <div className="flex items-center gap-2">
       <a
-        href={message.media_url}
+        href={message.media_url ? privateMediaViewUrl(message.media_url) : undefined}
         target="_blank"
         rel="noopener noreferrer"
         className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-muted"

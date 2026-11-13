@@ -23,7 +23,9 @@ export const THEME_IDS = [
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const DEFAULT_THEME: ThemeId = "violet";
+const configuredTheme = process.env.NEXT_PUBLIC_BRAND_THEME;
+export const DEFAULT_THEME: ThemeId = THEME_IDS.includes(configuredTheme as ThemeId)
+  ? configuredTheme as ThemeId : "violet";
 
 export const STORAGE_KEY = "wacrm.theme";
 

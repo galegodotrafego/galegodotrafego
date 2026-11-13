@@ -57,6 +57,9 @@ jobs:
       - name: Database security smoke tests
         run: npm run test:db-security
 
+      - name: Storage and distributed limiter security
+        run: npm run test:storage-security
+
       - name: Build
         run: npm run build
 

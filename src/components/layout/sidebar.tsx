@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { brand } from "@/lib/branding";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -194,17 +196,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           // Desktop: static, always visible — reset all the mobile framing.
           "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
         )}
-        aria-label="Primary"
+        aria-label="Navegação principal"
       >
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
+              {brand.logo ? <Image src={brand.logo} alt="" width={24} height={24} unoptimized /> : <MessageSquare className="h-4 w-4" />}
             </div>
             <span className="text-sm font-semibold text-foreground">
-              {t("title")}
+              {brand.name}
             </span>
           </Link>
           <button
@@ -314,7 +316,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               )}
             >
               <Building2 className="h-4 w-4" />
-              Empresas clientes
+              Administração global
             </Link>
           )}
         </nav>

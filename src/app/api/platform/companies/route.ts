@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/ai/admin-client";
 import { isPlatformOperator, PlatformAccessError, requirePlatformAdmin } from "@/lib/platform/admin";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
+import { rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
+
+import { checkDistributedRateLimit } from "@/lib/distributed-rate-limit";
 
 export const runtime = "nodejs";
 
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
         request.headers.get("sec-fetch-site") === "cross-site") {
       return NextResponse.json({ error: "Invalid request origin or content type" }, { status: 403 });
     }
-    const limit = checkRateLimit(
+    const limit = await checkDistributedRateLimit(
       `platform:provision:${operator.id}`,
       RATE_LIMITS.adminAction,
     );

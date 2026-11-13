@@ -1,3 +1,4 @@
+import { mediaReferenceUrl } from "./media-reference";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -77,7 +78,7 @@ export function buildMediaPath(
 }
 
 export interface UploadAccountMediaResult {
-  /** Public URL Meta can fetch at send time. */
+  /** Durable private reference; name retained for existing callers. */
   publicUrl: string;
   /** Storage object path (account-scoped). */
   path: string;
@@ -125,9 +126,7 @@ export async function uploadAccountMedia(
   });
   if (upErr) throw new Error(upErr.message);
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(bucket).getPublicUrl(path);
+  const publicUrl = mediaReferenceUrl(bucket, path);
 
   return { publicUrl, path };
 }

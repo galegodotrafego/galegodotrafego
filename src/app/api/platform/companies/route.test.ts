@@ -5,6 +5,7 @@ vi.mock("@/lib/platform/admin", async (original) => ({
 }));
 vi.mock("@/lib/ai/admin-client", () => ({ supabaseAdmin: mocks.admin }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: mocks.limit, RATE_LIMITS: { adminAction: {} }, rateLimitResponse: () => Response.json({}, { status: 429 }) }));
+vi.mock("@/lib/distributed-rate-limit", () => ({ checkDistributedRateLimit: mocks.limit }));
 import { GET, POST } from "./route";
 import { PlatformAccessError } from "@/lib/platform/admin";
 const body = { company_name: "Company A", owner_name: "Owner A", owner_email: "client@example.com" };

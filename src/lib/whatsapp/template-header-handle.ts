@@ -1,3 +1,4 @@
+import { mediaUrlForDelivery } from "@/lib/storage/sign-media";
 import { uploadResumableMedia } from '@/lib/whatsapp/meta-api'
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
@@ -22,6 +23,7 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png']
 export async function ensureImageHeaderHandle(
   payload: TemplatePayload,
   accessToken: string,
+  accountId?: string,
 ): Promise<void> {
   if (payload.header_type !== 'image') return
   if (payload.header_handle) return // already have one
@@ -34,13 +36,15 @@ export async function ensureImageHeaderHandle(
     )
   }
 
+  const deliveryUrl = await mediaUrlForDelivery(payload.header_media_url, accountId)
+
   // SSRF guard: `header_media_url` is caller-supplied (any authenticated
   // member can submit a template) and the fetch below happens server-side,
   // so refuse any destination that resolves to a private / loopback /
   // link-local / reserved address. Same guard, same message as the two
   // other outbound-fetch call sites (see lib/webhooks/ssrf.ts) — matching
   // the unreachable-host message keeps the failure from being an oracle.
-  if (!(await isDeliverableUrl(payload.header_media_url))) {
+  if (!(await isDeliverableUrl(deliveryUrl))) {
     throw new Error('Could not fetch the header image URL. Make sure it is publicly reachable.')
   }
 
@@ -48,7 +52,7 @@ export async function ensureImageHeaderHandle(
   // and for a manually-pasted public link).
   let res: Response
   try {
-    res = await fetch(payload.header_media_url, {
+    res = await fetch(deliveryUrl, {
       // Do NOT follow redirects — a public URL could 3xx-bounce to an
       // internal address, defeating the guard above. Bound the request so
       // a hung host can't tie up the template-submit handler.

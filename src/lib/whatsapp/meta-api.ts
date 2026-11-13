@@ -1,3 +1,4 @@
+import { mediaUrlForDelivery } from "@/lib/storage/sign-media";
 /**
  * Meta WhatsApp Cloud API helpers.
  *
@@ -262,6 +263,7 @@ export async function sendTextMessage(
 export type MediaKind = 'image' | 'video' | 'document' | 'audio'
 
 export interface SendMediaMessageArgs {
+  accountId?: string
   phoneNumberId: string
   accessToken: string
   to: string
@@ -297,7 +299,7 @@ export async function sendMediaMessage(
   // Audio accepts neither caption nor filename per Meta's spec — adding
   // either yields a 400. image/video/document accept a caption; only
   // document accepts a filename.
-  const media: Record<string, unknown> = { link }
+  const media: Record<string, unknown> = { link: await mediaUrlForDelivery(link, args.accountId) }
   if (caption && kind !== 'audio') media.caption = caption
   if (kind === 'document' && filename) media.filename = filename
 
@@ -332,6 +334,7 @@ import {
 } from './template-send-builder'
 
 export interface SendTemplateMessageArgs {
+  accountId?: string
   phoneNumberId: string
   accessToken: string
   to: string
@@ -395,12 +398,15 @@ export async function sendTemplateMessage(
   }
 
   if (template) {
+    const storedMedia = messageParams?.headerMediaUrl ?? template.header_media_url;
+    const deliveryMedia = storedMedia && !messageParams?.headerMediaId
+      ? await mediaUrlForDelivery(storedMedia, args.accountId) : undefined;
     const components = buildSendComponents(template, {
       // Legacy callers pass body values in `params`; fold them into
       // `messageParams.body` so the new path covers them too.
       body: messageParams?.body ?? params,
       headerText: messageParams?.headerText,
-      headerMediaUrl: messageParams?.headerMediaUrl,
+      headerMediaUrl: deliveryMedia,
       headerMediaId: messageParams?.headerMediaId,
       buttonParams: messageParams?.buttonParams,
     })

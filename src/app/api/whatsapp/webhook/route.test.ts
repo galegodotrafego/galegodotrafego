@@ -409,7 +409,7 @@ describe('inbound webhook: inbound media is mirrored (#466)', () => {
     )
     expect(h.state.upsertCalls[0].row).toMatchObject({
       media_url:
-        'https://cdn.test/chat-media/account-acc-1/inbound/1234567890123456-image-1700000000.jpg',
+        '/api/storage/media?bucket=chat-media&path=account-acc-1%2Finbound%2F1234567890123456-image-1700000000.jpg',
       // Meta's MIME type used to be discarded outright (`void mediaType`).
       media_type: 'image/jpeg',
     })

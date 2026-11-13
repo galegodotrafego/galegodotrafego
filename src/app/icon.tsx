@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { brand } from "@/lib/branding";
 
 // Replaces the default Next.js favicon with the brand mark — Hostinger
 // violet rounded square + white chat-square glyph — matching the
@@ -22,7 +23,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed", // primary (Hostinger-aligned purple)
+          background: brand.color,
           borderRadius: 6,
         }}
       >
